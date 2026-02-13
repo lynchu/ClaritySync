@@ -14,5 +14,11 @@ struct AudioParams: Equatable {
     /// 0..1 (1 = fully processed, 0 = fully original)
     var mix: Float = 1.0
 
-    static let demoDefault = AudioParams(gain: 1.0, mix: 1.0)
+    /// Enable DeepFilterNet processing
+    var dfnEnabled: Bool = false
+
+    /// Post-filter toggle (mask-based)
+    var postFilterEnabled: Bool = true
+
+    static let demoDefault = AudioParams(gain: 1.0, mix: 1.0, dfnEnabled: false, postFilterEnabled: true)
 }

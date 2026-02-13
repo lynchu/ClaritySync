@@ -29,20 +29,47 @@
 		2E2599372F3B13A5003CA16A /* ClaritySyncUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClaritySyncUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		2E2599AB2F3DB85F003CA16A /* Exceptions for "ios" folder in "ClaritySync" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ClaritySyncTests/ClaritySyncTests.swift,
+				ClaritySyncUITests/ClaritySyncUITests.swift,
+				ClaritySyncUITests/ClaritySyncUITestsLaunchTests.swift,
+			);
+			target = 2E25991F2F3B13A3003CA16A /* ClaritySync */;
+		};
+		2E2599AC2F3DB85F003CA16A /* Exceptions for "ios" folder in "ClaritySyncTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ClaritySyncTests/ClaritySyncTests.swift,
+			);
+			target = 2E25992C2F3B13A5003CA16A /* ClaritySyncTests */;
+		};
+		2E2599AD2F3DB85F003CA16A /* Exceptions for "ios" folder in "ClaritySyncUITests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ClaritySyncUITests/ClaritySyncUITests.swift,
+				ClaritySyncUITests/ClaritySyncUITestsLaunchTests.swift,
+			);
+			target = 2E2599362F3B13A5003CA16A /* ClaritySyncUITests */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		2E2599222F3B13A3003CA16A /* ClaritySync */ = {
+		2E2599802F3DB849003CA16A /* ios */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = ClaritySync;
+			exceptions = (
+				2E2599AB2F3DB85F003CA16A /* Exceptions for "ios" folder in "ClaritySync" target */,
+				2E2599AC2F3DB85F003CA16A /* Exceptions for "ios" folder in "ClaritySyncTests" target */,
+				2E2599AD2F3DB85F003CA16A /* Exceptions for "ios" folder in "ClaritySyncUITests" target */,
+			);
+			path = ios;
 			sourceTree = "<group>";
 		};
-		2E2599302F3B13A5003CA16A /* ClaritySyncTests */ = {
+		2E2599AE2F3DB883003CA16A /* rust */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = ClaritySyncTests;
-			sourceTree = "<group>";
-		};
-		2E25993A2F3B13A5003CA16A /* ClaritySyncUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = ClaritySyncUITests;
+			path = rust;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -75,9 +102,8 @@
 		2E2599172F3B13A3003CA16A = {
 			isa = PBXGroup;
 			children = (
-				2E2599222F3B13A3003CA16A /* ClaritySync */,
-				2E2599302F3B13A5003CA16A /* ClaritySyncTests */,
-				2E25993A2F3B13A5003CA16A /* ClaritySyncUITests */,
+				2E2599AE2F3DB883003CA16A /* rust */,
+				2E2599802F3DB849003CA16A /* ios */,
 				2E2599212F3B13A3003CA16A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -108,7 +134,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				2E2599222F3B13A3003CA16A /* ClaritySync */,
+				2E2599802F3DB849003CA16A /* ios */,
 			);
 			name = ClaritySync;
 			packageProductDependencies = (
@@ -130,9 +156,6 @@
 			dependencies = (
 				2E25992F2F3B13A5003CA16A /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				2E2599302F3B13A5003CA16A /* ClaritySyncTests */,
-			);
 			name = ClaritySyncTests;
 			packageProductDependencies = (
 			);
@@ -152,9 +175,6 @@
 			);
 			dependencies = (
 				2E2599392F3B13A5003CA16A /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				2E25993A2F3B13A5003CA16A /* ClaritySyncUITests */,
 			);
 			name = ClaritySyncUITests;
 			packageProductDependencies = (
@@ -412,6 +432,16 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/ios/ClaritySync/DFN/Resources/df3_onnx/.venv/lib/python3.9/site-packages/google/_upb",
+					"$(PROJECT_DIR)/ios/ClaritySync/DFN/Resources/df3_onnx/.venv/lib/python3.9/site-packages/numpy/_core/lib",
+					"$(PROJECT_DIR)/rust/df3-ios/target/aarch64-apple-ios/release/deps",
+					"$(PROJECT_DIR)/rust/df3-ios/target/release/deps",
+					"$(PROJECT_DIR)/rust/df3-ios/target/aarch64-apple-ios/release",
+					"$(PROJECT_DIR)/rust/df3-ios/target/aarch64-apple-ios-sim/release/deps",
+					"$(PROJECT_DIR)/rust/df3-ios/target/aarch64-apple-ios-sim/release",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.TeamCS.ClaritySync;
@@ -458,6 +488,16 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/ios/ClaritySync/DFN/Resources/df3_onnx/.venv/lib/python3.9/site-packages/google/_upb",
+					"$(PROJECT_DIR)/ios/ClaritySync/DFN/Resources/df3_onnx/.venv/lib/python3.9/site-packages/numpy/_core/lib",
+					"$(PROJECT_DIR)/rust/df3-ios/target/aarch64-apple-ios/release/deps",
+					"$(PROJECT_DIR)/rust/df3-ios/target/release/deps",
+					"$(PROJECT_DIR)/rust/df3-ios/target/aarch64-apple-ios/release",
+					"$(PROJECT_DIR)/rust/df3-ios/target/aarch64-apple-ios-sim/release/deps",
+					"$(PROJECT_DIR)/rust/df3-ios/target/aarch64-apple-ios-sim/release",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.TeamCS.ClaritySync;
