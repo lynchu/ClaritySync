@@ -1,6 +1,8 @@
 mod config;
 mod engine;
 mod error;
+mod ort_sys;
+mod ort_wrap;
 
 use engine::Df3Engine;
 use error::Df3Error;
@@ -18,7 +20,8 @@ fn err_code(e: Df3Error) -> i32 {
         Df3Error::NullPtr => 1,
         Df3Error::InvalidArg => 2,
         Df3Error::ModelLoad(_) => 3,
-        Df3Error::Process(_) => 4,
+        Df3Error::Ort(_) => 4,
+        Df3Error::Process(_) => 5,
     }
 }
 

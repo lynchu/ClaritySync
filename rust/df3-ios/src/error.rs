@@ -8,6 +8,10 @@ pub enum Df3Error {
     InvalidArg,
     #[error("model load failed: {0}")]
     ModelLoad(String),
+
+    #[error("onnx runtime error: {0}")]
+    Ort(String),
+
     #[error("process failed: {0}")]
     Process(String),
 }

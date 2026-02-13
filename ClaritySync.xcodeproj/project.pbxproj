@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		2E25F5672F3F1ABF003CA16A /* onnxruntime in Frameworks */ = {isa = PBXBuildFile; productRef = 2E25F5662F3F1ABF003CA16A /* onnxruntime */; };
+		2E25F5692F3F1AD5003CA16A /* onnxruntime_extensions in Frameworks */ = {isa = PBXBuildFile; productRef = 2E25F5682F3F1AD5003CA16A /* onnxruntime_extensions */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		2E25992E2F3B13A5003CA16A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -79,6 +84,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2E25F5672F3F1ABF003CA16A /* onnxruntime in Frameworks */,
+				2E25F5692F3F1AD5003CA16A /* onnxruntime_extensions in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -104,6 +111,7 @@
 			children = (
 				2E2599AE2F3DB883003CA16A /* rust */,
 				2E2599802F3DB849003CA16A /* ios */,
+				2E25F5652F3F1ABF003CA16A /* Frameworks */,
 				2E2599212F3B13A3003CA16A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -116,6 +124,13 @@
 				2E2599372F3B13A5003CA16A /* ClaritySyncUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		2E25F5652F3F1ABF003CA16A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -138,6 +153,8 @@
 			);
 			name = ClaritySync;
 			packageProductDependencies = (
+				2E25F5662F3F1ABF003CA16A /* onnxruntime */,
+				2E25F5682F3F1AD5003CA16A /* onnxruntime_extensions */,
 			);
 			productName = ClaritySync;
 			productReference = 2E2599202F3B13A3003CA16A /* ClaritySync.app */;
@@ -215,6 +232,9 @@
 			);
 			mainGroup = 2E2599172F3B13A3003CA16A;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				2E25F5642F3F1963003CA16A /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 2E2599212F3B13A3003CA16A /* Products */;
 			projectDirPath = "";
@@ -659,6 +679,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		2E25F5642F3F1963003CA16A /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/microsoft/onnxruntime-swift-package-manager";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.20.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2E25F5662F3F1ABF003CA16A /* onnxruntime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2E25F5642F3F1963003CA16A /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */;
+			productName = onnxruntime;
+		};
+		2E25F5682F3F1AD5003CA16A /* onnxruntime_extensions */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2E25F5642F3F1963003CA16A /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */;
+			productName = onnxruntime_extensions;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 2E2599182F3B13A3003CA16A /* Project object */;
 }
