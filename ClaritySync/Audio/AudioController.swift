@@ -169,6 +169,11 @@ final class AudioController: ObservableObject {
     @Published var params: AudioParams = .demoDefault
     @Published private(set) var metrics: AudioMetrics = .init()
     @Published private(set) var routeInfo: AudioRouteInfo = .current()
+    @Published private(set) var convo: ConversationMetrics = .zero
+
+    // For feature extraction
+    private let adjustCounter = Counter()
+    private let featureExtractor = ConversationFeatureExtractor(windowSec: 30.0)
 
     // Internal thread-safe state
     private let paramsBox = ParamsBox(.demoDefault)
@@ -215,6 +220,7 @@ final class AudioController: ObservableObject {
         inDropCounter.reset()
         outUnderrunCounter.reset()
         outOverflowCounter.reset()
+        adjustCounter.reset()
         ema = EMA(alpha: 0.05, initial: 0)
         lastOutSample = 0
         lastMetricsPublishT = 0
@@ -276,6 +282,7 @@ final class AudioController: ObservableObject {
     /// Called when sliders change; no restart
     func applyParams(_ p: AudioParams) {
         paramsBox.set(p)
+        adjustCounter.inc()   // user behavior proxy
         DispatchQueue.main.async { self.params = p }
     }
 
@@ -403,6 +410,13 @@ final class AudioController: ObservableObject {
 
                 let t0 = CACurrentMediaTime()
 
+                // Update metrics before input
+                let adjustments = self.adjustCounter.get()
+                self.featureExtractor.update(frame: inBuf,
+                                             sampleRate: self.sampleRate,
+                                             frameSize: self.frameSize,
+                                             adjustmentsCounter: adjustments)
+                
                 let p = self.paramsBox.get()
                 inBuf.withUnsafeBufferPointer { inp in
                     outBuf.withUnsafeMutableBufferPointer { outp in
@@ -433,9 +447,15 @@ final class AudioController: ObservableObject {
                         inFill: self.inRing.availableToRead(),
                         outFill: self.outRing.availableToRead(),
                         outUnderruns: self.outUnderrunCounter.get(),
-                        outOverflows: self.outOverflowCounter.get(),
+                        outOverflows: self.outOverflowCounter.get()
                     )
-                    DispatchQueue.main.async { self.metrics = m }
+                    // Publish extracted feature
+                    let c = self.featureExtractor.current()
+                    
+                    DispatchQueue.main.async {
+                        self.metrics = m
+                        self.convo = c
+                    }
                 }
             }
         }

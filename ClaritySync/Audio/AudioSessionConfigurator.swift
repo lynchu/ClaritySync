@@ -27,7 +27,12 @@ enum AudioSessionConfigurator {
         let s = AVAudioSession.sharedInstance()
 
         // Xcode 26+ prefers allowBluetoothHFP over allowBluetooth (deprecated).
-        let opts: AVAudioSession.CategoryOptions = [.allowBluetoothHFP, .allowBluetoothA2DP]
+        var opts: AVAudioSession.CategoryOptions = [ .allowBluetoothA2DP]
+        #if compiler(>=6.2)   // Xcode 26+
+            opts.insert(.allowBluetoothHFP)
+        #else
+            opts.insert(.allowBluetooth)
+        #endif
 
         try s.setCategory(.playAndRecord, mode: .voiceChat, options: opts)
         try s.setPreferredSampleRate(sampleRate)
