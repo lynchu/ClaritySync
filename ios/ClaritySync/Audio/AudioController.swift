@@ -161,6 +161,84 @@ private final class GainMixProcessor: FrameProcessor {
     }
 }
 
+private final class DFNFrameProcessor: FrameProcessor {
+    private let hop = 480
+    private var bridge: DFNBridge?
+    private var cachedPostFilter: Bool = true
+
+    init?() {
+        do {
+            let dir = try DFNModelManager.shared.modelDirPath()
+            guard let b = DFNBridge(modelDir: dir, sampleRate: 48_000, postFilterEnabled: true) else { return nil }
+            self.bridge = b
+            self.cachedPostFilter = true
+        } catch {
+            return nil
+        }
+    }
+
+    func reset() {
+        bridge?.reset()
+    }
+
+    func setPostFilter(_ enabled: Bool) {
+        guard enabled != cachedPostFilter else { return }
+        cachedPostFilter = enabled
+        bridge?.setPostFilter(enabled)
+    }
+
+    func process(input: UnsafePointer<Float>,
+                 output: UnsafeMutablePointer<Float>,
+                 frameCount: Int,
+                 params: AudioParams) {
+
+        // Apply post-filter toggle dynamically
+        setPostFilter(params.postFilterEnabled)
+
+        // If DFN disabled, fall back to gain+mix scale (same as GainMixProcessor)
+        if params.dfnEnabled == false {
+            let g = params.gain
+            let mix = params.mix
+            let inv = (1.0 as Float) - mix
+            let scale = g * mix + inv
+            vDSP_vsmul(input, 1, [scale], output, 1, vDSP_Length(frameCount))
+            return
+        }
+
+        // DFN expects hop=480. Your frameSize=960 => 2 hops.
+        if frameCount != 960 || bridge == nil {
+            // safe fallback
+            output.update(from: input, count: frameCount)
+            return
+        }
+
+        // hop 0
+        _ = bridge!.processHop(input: input, output: output, hop: hop)
+        // hop 1
+        _ = bridge!.processHop(input: input.advanced(by: hop),
+                               output: output.advanced(by: hop),
+                               hop: hop)
+
+        // After DFN, apply your gain/mix (so UI still works)
+        let g = params.gain
+        let mix = params.mix
+        if mix < 0.999 || abs(g - 1.0) > 1e-6 {
+            // output = wet*mix*g + dry*(1-mix)
+            // do it in-place with vDSP for speed
+            // wet = output * (g*mix)
+            // dry = input * (1-mix)
+            var wetScale = g * mix
+            var dryScale = (1.0 as Float) - mix
+
+            // temp buffer on stack is not possible; use vDSP to compute:
+            // out = out*wetScale + in*dryScale
+            vDSP_vsmul(output, 1, &wetScale, output, 1, vDSP_Length(frameCount))
+            vDSP_vsma(input, 1, &dryScale, output, 1, output, 1, vDSP_Length(frameCount))
+        }
+    }
+}
+
+
 // MARK: - AudioController (mic is ALWAYS AirPods HFP)
 
 final class AudioController: ObservableObject {
@@ -185,7 +263,9 @@ final class AudioController: ObservableObject {
     private var sourceNode: AVAudioSourceNode?
     private let routeMonitor = AudioRouteMonitor()
 
-    private let processor: FrameProcessor = GainMixProcessor()
+    private let gainProcessor: FrameProcessor = GainMixProcessor()
+    private var dfnProcessor: DFNFrameProcessor? = DFNFrameProcessor()
+    private var processor: FrameProcessor { dfnProcessor ?? gainProcessor }
 
     private var inRing: FloatRingBuffer!
     private var outRing: FloatRingBuffer!
@@ -224,6 +304,8 @@ final class AudioController: ObservableObject {
         ema = EMA(alpha: 0.05, initial: 0)
         lastOutSample = 0
         lastMetricsPublishT = 0
+        
+        dfnProcessor?.reset()
 
         switchQueue.async { [weak self] in
             guard let self else { return }

@@ -29,19 +29,39 @@ struct ContentView: View {
                             .foregroundColor(.secondary)
                     }
 
-                    GroupBox("Demo Controls") {
-                        VStack(alignment: .leading, spacing: 14) {
-                            VStack(alignment: .leading) {
-                                Text(String(format: "Gain: %.2f", audio.params.gain))
-                                Slider(value: Binding(
-                                    get: { Double(audio.params.gain) },
-                                    set: { v in
-                                        var p = audio.params
-                                        p.gain = Float(v)
-                                        audio.applyParams(p)
-                                    }
-                                ), in: 0.0...2.0)
+                GroupBox("Demo Controls") {
+                    VStack(alignment: .leading, spacing: 14) {
+                        
+                        Toggle("Enable DeepFilterNet", isOn: Binding(
+                            get: { audio.params.dfnEnabled },
+                            set: { v in
+                                var p = audio.params
+                                p.dfnEnabled = v
+                                audio.applyParams(p)
                             }
+                        ))
+
+                        Toggle("Post-filter", isOn: Binding(
+                            get: { audio.params.postFilterEnabled },
+                            set: { v in
+                                var p = audio.params
+                                p.postFilterEnabled = v
+                                audio.applyParams(p)
+                            }
+                        ))
+                        .disabled(audio.params.dfnEnabled == false)
+                        
+                        VStack(alignment: .leading) {
+                            Text(String(format: "Gain: %.2f", audio.params.gain))
+                            Slider(value: Binding(
+                                get: { Double(audio.params.gain) },
+                                set: { v in
+                                    var p = audio.params
+                                    p.gain = Float(v)
+                                    audio.applyParams(p)
+                                }
+                            ), in: 0.0...2.0)
+                        }
 
                             VStack(alignment: .leading) {
                                 Text(String(format: "Mix (processed): %.2f", audio.params.mix))

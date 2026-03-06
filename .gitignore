@@ -6,6 +6,10 @@ DerivedData/
 *.xccheckout
 *.xcscmblueprint
 
+# Rust Build
+rust/df3-ios/target/*
+ios/ClaritySync/Vendor/*
+
 # SwiftPM
 .build/
 
