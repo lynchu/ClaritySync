@@ -15,7 +15,7 @@ struct ContentView: View {
             ScrollView {
                 VStack(spacing: 16) {
 
-                    // Controls row
+                    // MARK: - Transport
                     HStack(spacing: 12) {
                         Button(audio.isRunning ? "Stop" : "Start") {
                             audio.isRunning ? audio.stop() : audio.start()
@@ -29,39 +29,40 @@ struct ContentView: View {
                             .foregroundColor(.secondary)
                     }
 
-                GroupBox("Demo Controls") {
-                    VStack(alignment: .leading, spacing: 14) {
-                        
-                        Toggle("Enable DeepFilterNet", isOn: Binding(
-                            get: { audio.params.dfnEnabled },
-                            set: { v in
-                                var p = audio.params
-                                p.dfnEnabled = v
-                                audio.applyParams(p)
-                            }
-                        ))
+                    // MARK: - Demo Controls
+                    GroupBox("Demo Controls") {
+                        VStack(alignment: .leading, spacing: 14) {
 
-                        Toggle("Post-filter", isOn: Binding(
-                            get: { audio.params.postFilterEnabled },
-                            set: { v in
-                                var p = audio.params
-                                p.postFilterEnabled = v
-                                audio.applyParams(p)
-                            }
-                        ))
-                        .disabled(audio.params.dfnEnabled == false)
-                        
-                        VStack(alignment: .leading) {
-                            Text(String(format: "Gain: %.2f", audio.params.gain))
-                            Slider(value: Binding(
-                                get: { Double(audio.params.gain) },
+                            Toggle("Enable DeepFilterNet", isOn: Binding(
+                                get: { audio.params.dfnEnabled },
                                 set: { v in
                                     var p = audio.params
-                                    p.gain = Float(v)
+                                    p.dfnEnabled = v
                                     audio.applyParams(p)
                                 }
-                            ), in: 0.0...2.0)
-                        }
+                            ))
+
+                            Toggle("Post-filter", isOn: Binding(
+                                get: { audio.params.postFilterEnabled },
+                                set: { v in
+                                    var p = audio.params
+                                    p.postFilterEnabled = v
+                                    audio.applyParams(p)
+                                }
+                            ))
+                            .disabled(!audio.params.dfnEnabled)
+
+                            VStack(alignment: .leading) {
+                                Text(String(format: "Gain: %.2f", audio.params.gain))
+                                Slider(value: Binding(
+                                    get: { Double(audio.params.gain) },
+                                    set: { v in
+                                        var p = audio.params
+                                        p.gain = Float(v)
+                                        audio.applyParams(p)
+                                    }
+                                ), in: 0.0...2.0)
+                            }
 
                             VStack(alignment: .leading) {
                                 Text(String(format: "Mix (processed): %.2f", audio.params.mix))
@@ -77,11 +78,68 @@ struct ContentView: View {
                         }
                     }
 
+                    // MARK: - Logging
+                    GroupBox("Logging (CSV)") {
+                        VStack(alignment: .leading, spacing: 12) {
+
+                            HStack {
+                                Text("Record every: \(audio.recordEverySec, specifier: "%.2f") s")
+                                    .font(.footnote)
+                                Spacer()
+                            }
+
+                            Slider(value: $audio.recordEverySec, in: 0.1...5.0, step: 0.1)
+                                .disabled(audio.isRecording) // avoid changing mid-recording
+
+                            HStack(spacing: 12) {
+                                Button(audio.isRecording ? "Stop Recording" : "Start Recording") {
+                                    audio.isRecording ? audio.stopRecording() : audio.startRecording()
+                                }
+                                .buttonStyle(.bordered)
+
+                                if audio.isRecording {
+                                    Text("Recording…")
+                                        .font(.footnote)
+                                        .foregroundColor(.secondary)
+                                } else if !audio.recordedFiles.isEmpty {
+                                    Text("Files ready: \(audio.recordedFiles.count)")
+                                        .font(.footnote)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+                            }
+
+                            if !audio.recordedFiles.isEmpty {
+                                Divider()
+
+                                Text("Export files:")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+
+                                ForEach(audio.recordedFiles, id: \.self) { url in
+                                    ShareLink(item: url) {
+                                        Text(url.lastPathComponent)
+                                            .font(.footnote)
+                                    }
+                                }
+
+                                Text("Tip: Use AirDrop / Files to move CSV to your Mac for plotting.")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+
+                    // MARK: - Metrics
                     MetricsView(
                         route: audio.routeInfo,
                         metrics: audio.metrics,
                         convo: audio.convo
                     )
+
+                    Spacer(minLength: 8)
 
                     Text("This demo only records from AirPods microphone (Bluetooth HFP).\nIf Start fails, reconnect AirPods and try again.")
                         .font(.footnote)

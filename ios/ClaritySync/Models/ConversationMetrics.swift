@@ -5,6 +5,9 @@ struct ConversationMetrics: Equatable {
     var isSpeech: Bool = false
     var rmsDb: Float = -120.0
     var noiseFloorDb: Float = -120.0
+    
+    // moving average of silence level (dB), ~30–40s horizon
+    var silenceDbMA: Float = -120.0
 
     // Window stats (default: last 30s)
     var windowSec: Double = 30.0
