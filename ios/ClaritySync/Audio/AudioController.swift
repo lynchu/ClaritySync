@@ -247,6 +247,18 @@ final class AudioController: ObservableObject {
     @Published var params: AudioParams = .demoDefault
     @Published private(set) var metrics: AudioMetrics = .init()
     @Published private(set) var routeInfo: AudioRouteInfo = .current()
+    @Published private(set) var convo: ConversationMetrics = .zero
+    @Published var isRecording: Bool = false
+    @Published var recordEverySec: Double = 1.0
+    @Published private(set) var recordedFiles: [URL] = []
+
+    // For feature extraction
+    private let adjustCounter = Counter()
+    private let featureExtractor = ConversationFeatureExtractor(windowSec: 30.0)
+    
+    // For data logging
+    private let metricsLogger = CSVLogger()
+    private var nextRecordT: Double = 0
 
     // Internal thread-safe state
     private let paramsBox = ParamsBox(.demoDefault)
@@ -295,6 +307,7 @@ final class AudioController: ObservableObject {
         inDropCounter.reset()
         outUnderrunCounter.reset()
         outOverflowCounter.reset()
+        adjustCounter.reset()
         ema = EMA(alpha: 0.05, initial: 0)
         lastOutSample = 0
         lastMetricsPublishT = 0
@@ -358,7 +371,43 @@ final class AudioController: ObservableObject {
     /// Called when sliders change; no restart
     func applyParams(_ p: AudioParams) {
         paramsBox.set(p)
+        adjustCounter.inc()   // user behavior proxy
         DispatchQueue.main.async { self.params = p }
+    }
+    
+    func startRecording() {
+        guard !isRecording else { return }
+
+        // Remove old file lists
+        DispatchQueue.main.async { self.recordedFiles = [] }
+
+        do {
+            try metricsLogger.start(
+                        prefix: "metrics",
+                        header: "timestamp_sec,"
+                              + "isSpeech,rmsDb,noiseDb,silenceDbMA,"
+                              + "silenceRatio,meanPauseMs,p95PauseMs,onsetRatePerSec,adjustmentsPerMin,"
+                              + "bufferedLatencyMs,procMsEMA,"
+                              + "inFill,outFill,inDrops,outUnderruns,outOverflows"
+                    )
+            nextRecordT = CACurrentMediaTime()
+            DispatchQueue.main.async { self.isRecording = true }
+        } catch {
+            print("startRecording error:", error)
+            DispatchQueue.main.async { self.isRecording = false }
+        }
+    }
+
+    func stopRecording() {
+        guard isRecording else { return }
+        
+        metricsLogger.stop()
+        let urls = [metricsLogger.url].compactMap { $0 }
+        
+        DispatchQueue.main.async {
+            self.isRecording = false
+            self.recordedFiles = urls
+        }
     }
 
     // MARK: Session / Engine
@@ -485,6 +534,13 @@ final class AudioController: ObservableObject {
 
                 let t0 = CACurrentMediaTime()
 
+                // Update metrics before input
+                let adjustments = self.adjustCounter.get()
+                self.featureExtractor.update(frame: inBuf,
+                                             sampleRate: self.sampleRate,
+                                             frameSize: self.frameSize,
+                                             adjustmentsCounter: adjustments)
+                
                 let p = self.paramsBox.get()
                 inBuf.withUnsafeBufferPointer { inp in
                     outBuf.withUnsafeMutableBufferPointer { outp in
@@ -515,9 +571,42 @@ final class AudioController: ObservableObject {
                         inFill: self.inRing.availableToRead(),
                         outFill: self.outRing.availableToRead(),
                         outUnderruns: self.outUnderrunCounter.get(),
-                        outOverflows: self.outOverflowCounter.get(),
+                        outOverflows: self.outOverflowCounter.get()
                     )
-                    DispatchQueue.main.async { self.metrics = m }
+                    // Publish extracted feature
+                    let c = self.featureExtractor.current()
+                    
+                    DispatchQueue.main.async {
+                        self.metrics = m
+                        self.convo = c
+                    }
+                }
+                
+                // Estimate latency
+                let bufferedLatencyMs = Double(self.inRing.availableToRead() + self.outRing.availableToRead()) / self.sampleRate * 1000.0
+                // Record Metrics
+                if self.isRecording, now >= self.nextRecordT {
+                    self.nextRecordT = now + max(0.05, self.recordEverySec)
+
+                    let t = now
+                    let c = self.featureExtractor.current()
+
+                    // Snapshot once (avoid repeated locks)
+                    // TODO: make this code cleaner
+                    let procMs = self.ema.value
+                    let inFill = self.inRing.availableToRead()
+                    let outFill = self.outRing.availableToRead()
+                    let inDrops = self.inDropCounter.get()
+                    let outUnderruns = self.outUnderrunCounter.get()
+                    let outOverflows = self.outOverflowCounter.get()
+
+                    try? self.metricsLogger.writeLine(
+                            "\(t),"
+                            + "\(c.isSpeech ? 1 : 0),\(c.rmsDb),\(c.noiseFloorDb),\(c.silenceDbMA),"
+                            + "\(c.silenceRatio),\(c.meanPauseMs),\(c.p95PauseMs),\(c.onsetRatePerSec),\(c.adjustmentsPerMin),"
+                            + "\(bufferedLatencyMs),\(procMs),"
+                            + "\(inFill),\(outFill),\(inDrops),\(outUnderruns),\(outOverflows)"
+                        )
                 }
             }
         }
