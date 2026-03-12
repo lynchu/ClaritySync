@@ -40,12 +40,7 @@ struct ContentView: View {
                                     p.dfnEnabled = v
                                     audio.applyParams(p)
                                 }
-<<<<<<< HEAD
-                            ), in: 0.0...5.0)
-                        }
-=======
                             ))
->>>>>>> feature/conversation-feature
 
                             Toggle("Post-filter", isOn: Binding(
                                 get: { audio.params.postFilterEnabled },
@@ -66,7 +61,7 @@ struct ContentView: View {
                                         p.gain = Float(v)
                                         audio.applyParams(p)
                                     }
-                                ), in: 0.0...2.0)
+                                ), in: 0.0...5.0)
                             }
 
                             VStack(alignment: .leading) {
