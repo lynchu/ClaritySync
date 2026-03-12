@@ -59,7 +59,7 @@ struct ContentView: View {
                                     p.gain = Float(v)
                                     audio.applyParams(p)
                                 }
-                            ), in: 0.0...2.0)
+                            ), in: 0.0...5.0)
                         }
 
                         VStack(alignment: .leading) {
