@@ -8,8 +8,9 @@
 import Foundation
 
 struct AudioParams: Equatable {
-    /// 0..2 (1 = no change)
+    /// 0..5 (1 = no change)
     var gain: Float = 1.0
+
 
     /// 0..1 (1 = fully processed, 0 = fully original)
     var mix: Float = 1.0
