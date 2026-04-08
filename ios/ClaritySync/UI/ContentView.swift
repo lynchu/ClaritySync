@@ -29,6 +29,35 @@ struct ContentView: View {
                             .foregroundColor(.secondary)
                     }
 
+                    // MARK: - DeepFilterNet Model
+                    GroupBox("DeepFilterNet Model") {
+                        VStack(alignment: .leading, spacing: 14) {
+
+                            Picker("Model", selection: Binding(
+                                get: { audio.dfnModelMode },
+                                set: { audio.setDFNModelMode($0) }
+                            )) {
+                                ForEach(DFModelMode.allCases) { mode in
+                                    Text(mode.displayName).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            Text(audio.dfnModelMode.shortDescription)
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+
+                            HStack {
+                                Text("Model latency")
+                                    .font(.footnote)
+                                Spacer()
+                                Text("\(audio.dfnModelLatencySamples) samples / \(audio.dfnModelLatencyMs, specifier: "%.2f") ms")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+
                     // MARK: - Demo Controls
                     GroupBox("Demo Controls") {
                         VStack(alignment: .leading, spacing: 14) {
@@ -89,7 +118,7 @@ struct ContentView: View {
                             }
 
                             Slider(value: $audio.recordEverySec, in: 0.1...5.0, step: 0.1)
-                                .disabled(audio.isRecording) // avoid changing mid-recording
+                                .disabled(audio.isRecording)
 
                             HStack(spacing: 12) {
                                 Button(audio.isRecording ? "Stop Recording" : "Start Recording") {

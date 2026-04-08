@@ -83,10 +83,9 @@ impl Df3Engine {
             self.df_dec,
             &["emb", "c0"],
             &[enc_out[4], enc_out[5]],
-            &["coefs", "235"],
+            &["coefs"],
         )?;
         eprintln!("[DF3][ORT] df_dec out coefs shape = {:?}", self.ort.tensor_shape(df_out[0])?);
-        eprintln!("[DF3][ORT] df_dec out 235 shape = {:?}", self.ort.tensor_shape(df_out[1])?);
 
         unsafe {
             let api = self.ort.api;

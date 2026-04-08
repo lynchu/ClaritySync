@@ -163,18 +163,26 @@ private final class GainMixProcessor: FrameProcessor {
 
 private final class DFNFrameProcessor: FrameProcessor {
     private let hop = 480
+    private let modelMode: DFModelMode
     private var bridge: DFNBridge?
-    private var cachedPostFilter: Bool = true
+    private var cachedPostFilter: Bool
 
-    init?() {
-        do {
-            let dir = try DFNModelManager.shared.modelDirPath()
-            guard let b = DFNBridge(modelDir: dir, sampleRate: 48_000, postFilterEnabled: true) else { return nil }
-            self.bridge = b
-            self.cachedPostFilter = true
-        } catch {
+    init?(modelMode: DFModelMode, postFilterEnabled: Bool = true) {
+        self.modelMode = modelMode
+        self.cachedPostFilter = postFilterEnabled
+
+        guard let bridge = DFNBridge(
+            modelMode: modelMode,
+            sampleRate: 48_000,
+            postFilterEnabled: postFilterEnabled
+        ) else {
             return nil
         }
+        self.bridge = bridge
+    }
+
+    var latencySamples: Int {
+        bridge?.latencySamples() ?? 0
     }
 
     func reset() {
@@ -192,10 +200,8 @@ private final class DFNFrameProcessor: FrameProcessor {
                  frameCount: Int,
                  params: AudioParams) {
 
-        // Apply post-filter toggle dynamically
         setPostFilter(params.postFilterEnabled)
 
-        // If DFN disabled, fall back to gain+mix scale (same as GainMixProcessor)
         if params.dfnEnabled == false {
             let g = params.gain
             let mix = params.mix
@@ -205,39 +211,26 @@ private final class DFNFrameProcessor: FrameProcessor {
             return
         }
 
-        // DFN expects hop=480. Your frameSize=960 => 2 hops.
         if frameCount != 960 || bridge == nil {
-            // safe fallback
             output.update(from: input, count: frameCount)
             return
         }
 
-        // hop 0
         _ = bridge!.processHop(input: input, output: output, hop: hop)
-        // hop 1
         _ = bridge!.processHop(input: input.advanced(by: hop),
                                output: output.advanced(by: hop),
                                hop: hop)
 
-        // After DFN, apply your gain/mix (so UI still works)
         let g = params.gain
         let mix = params.mix
         if mix < 0.999 || abs(g - 1.0) > 1e-6 {
-            // output = wet*mix*g + dry*(1-mix)
-            // do it in-place with vDSP for speed
-            // wet = output * (g*mix)
-            // dry = input * (1-mix)
             var wetScale = g * mix
             var dryScale = (1.0 as Float) - mix
-
-            // temp buffer on stack is not possible; use vDSP to compute:
-            // out = out*wetScale + in*dryScale
             vDSP_vsmul(output, 1, &wetScale, output, 1, vDSP_Length(frameCount))
             vDSP_vsma(input, 1, &dryScale, output, 1, output, 1, vDSP_Length(frameCount))
         }
     }
 }
-
 
 // MARK: - AudioController (mic is ALWAYS AirPods HFP)
 
@@ -251,6 +244,9 @@ final class AudioController: ObservableObject {
     @Published var isRecording: Bool = false
     @Published var recordEverySec: Double = 1.0
     @Published private(set) var recordedFiles: [URL] = []
+    @Published private(set) var dfnModelMode: DFModelMode = .standard
+    @Published private(set) var dfnModelLatencySamples: Int = 0
+    @Published private(set) var dfnModelLatencyMs: Double = 0
 
     // For feature extraction
     private let adjustCounter = Counter()
@@ -271,7 +267,7 @@ final class AudioController: ObservableObject {
     private let routeMonitor = AudioRouteMonitor()
 
     private let gainProcessor: FrameProcessor = GainMixProcessor()
-    private var dfnProcessor: DFNFrameProcessor? = DFNFrameProcessor()
+    private var dfnProcessor: DFNFrameProcessor?
     private var processor: FrameProcessor { dfnProcessor ?? gainProcessor }
 
     private var inRing: FloatRingBuffer!
@@ -294,7 +290,8 @@ final class AudioController: ObservableObject {
 
     // Throttle UI metric publishing (avoid spamming main queue at audio rate)
     private var lastMetricsPublishT: Double = 0
-
+    
+    init() { rebuildDFNProcessor(modelMode: .standard) }
     deinit { routeMonitor.stop() }
 
     // MARK: Public API
@@ -312,6 +309,9 @@ final class AudioController: ObservableObject {
         lastOutSample = 0
         lastMetricsPublishT = 0
         
+        if dfnProcessor == nil {
+            rebuildDFNProcessor(modelMode: dfnModelMode)
+        }
         dfnProcessor?.reset()
 
         switchQueue.async { [weak self] in
@@ -334,6 +334,7 @@ final class AudioController: ObservableObject {
                 DispatchQueue.main.async {
                     self.metrics = AudioMetrics()
                     self.isRunning = true
+                    self.refreshDFNLatencyMetrics()
                     self.routeInfo = AudioRouteInfo.current()
                 }
             } catch {
@@ -368,9 +369,110 @@ final class AudioController: ObservableObject {
         }
     }
 
+    ///DFN
+    private let dfnModelSampleRate: Double = 48_000
+    private func refreshDFNLatencyMetrics() {
+        let samples = dfnProcessor?.latencySamples ?? 0
+        let latencyMs = Double(samples) / dfnModelSampleRate * 1000.0
+        print("refreshDFNLatencyMetrics samples=\(samples), modelSampleRate=\(dfnModelSampleRate), latencyMs=\(latencyMs)")
+        
+        DispatchQueue.main.async {
+            self.dfnModelLatencySamples = samples
+            self.dfnModelLatencyMs = latencyMs
+        }
+    }
+    
+    
+    private func rebuildDFNProcessor(modelMode: DFModelMode,
+                                     postFilterEnabled: Bool? = nil) {
+        let enabled = postFilterEnabled ?? paramsBox.get().postFilterEnabled
+        let newProcessor = DFNFrameProcessor(modelMode: modelMode,
+                                             postFilterEnabled: enabled)
+
+        dfnProcessor = newProcessor
+
+        let samples = newProcessor?.latencySamples ?? 0
+        let sr = sampleRate > 0 ? sampleRate : 48_000
+        let latencyMs = Double(samples) / dfnModelSampleRate * 1000.0
+
+        if newProcessor == nil {
+            print("DFN rebuild failed for mode \(modelMode.rawValue)")
+        } else {
+            print("DFN rebuild success for mode \(modelMode.rawValue), latencySamples=\(samples), latencyMs=\(latencyMs)")
+        }
+
+        DispatchQueue.main.async {
+            self.dfnModelMode = modelMode
+            self.dfnModelLatencySamples = samples
+            self.dfnModelLatencyMs = latencyMs
+            
+        }
+    }
+
+    
+    func setDFNModelMode(_ mode: DFModelMode) {
+        switchQueue.async { [weak self] in
+            guard let self else { return }
+
+            let wasRunning = self.isRunning
+
+            if wasRunning {
+                self.routeMonitor.stop()
+                self.stopWorker()
+                self.teardownEngineGraph()
+                self.engine.stop()
+                self.engine.reset()
+                try? AVAudioSession.sharedInstance().setActive(false)
+            }
+
+            self.rebuildDFNProcessor(modelMode: mode)
+
+            if wasRunning {
+                do {
+                    try AudioSessionConfigurator.configureForAirPodsMicOnly(sampleRate: 48_000,
+                                                                           ioBufferDuration: 0.02)
+
+                    self.refreshHardwareFormatFromSession()
+                    self.setupRings()
+                    try self.setupEngineGraph()
+                    self.startWorker()
+                    try self.engine.start()
+
+                    self.routeMonitor.start { [weak self] in
+                        guard let self else { return }
+                        DispatchQueue.main.async {
+                            self.routeInfo = AudioRouteInfo.current()
+                        }
+                    }
+
+                    DispatchQueue.main.async {
+                        self.metrics = AudioMetrics()
+                        self.isRunning = true
+                        self.routeInfo = AudioRouteInfo.current()
+                        self.refreshDFNLatencyMetrics()
+                    }
+                } catch {
+                    print("setDFNModelMode restart error:", error)
+                    DispatchQueue.main.async {
+                        self.isRunning = false
+                        self.routeInfo = AudioRouteInfo.current()
+                    }
+                }
+            } else {
+                DispatchQueue.main.async {
+                    self.refreshDFNLatencyMetrics()
+                }
+            }
+        }
+    }
+    
+    
     /// Called when sliders change; no restart
     func applyParams(_ p: AudioParams) {
         paramsBox.set(p)
+        if p.postFilterEnabled != params.postFilterEnabled {
+            dfnProcessor?.setPostFilter(p.postFilterEnabled)
+        }
         adjustCounter.inc()   // user behavior proxy
         DispatchQueue.main.async { self.params = p }
     }

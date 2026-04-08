@@ -28,17 +28,30 @@ fn err_code(e: Df3Error) -> i32 {
 #[no_mangle]
 pub extern "C" fn df3_create(model_dir: *const c_char, sample_rate: i32) -> *mut Handle {
     if model_dir.is_null() {
+        eprintln!("[DF3][FFI] df3_create failed: model_dir is null");
         return std::ptr::null_mut();
     }
+
     let cstr = unsafe { CStr::from_ptr(model_dir) };
     let dir = match cstr.to_str() {
         Ok(s) => s,
-        Err(_) => return std::ptr::null_mut(),
+        Err(e) => {
+            eprintln!("[DF3][FFI] df3_create failed: invalid UTF-8 path: {e}");
+            return std::ptr::null_mut();
+        }
     };
 
+    eprintln!("[DF3][FFI] df3_create dir={dir}, sample_rate={sample_rate}");
+
     match Df3Engine::new(dir, sample_rate) {
-        Ok(eng) => Box::into_raw(Box::new(Handle { eng })),
-        Err(_) => std::ptr::null_mut(),
+        Ok(eng) => {
+            eprintln!("[DF3][FFI] df3_create success");
+            Box::into_raw(Box::new(Handle { eng }))
+        }
+        Err(e) => {
+            eprintln!("[DF3][FFI] df3_create failed: {:?}", e);
+            std::ptr::null_mut()
+        }
     }
 }
 
