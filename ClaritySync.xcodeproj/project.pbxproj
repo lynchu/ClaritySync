@@ -30,6 +30,19 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		96DEAE9E2F5ACDC30056BFA3 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		2E12A5022F863DBA00C123AE /* df3_standard */ = {isa = PBXFileReference; lastKnownFileType = folder; name = df3_standard; path = ios/ClaritySync/DFN/Resources/df3_standard; sourceTree = "<group>"; };
 		2E12A5032F863DBA00C123AE /* df3_ll */ = {isa = PBXFileReference; lastKnownFileType = folder; name = df3_ll; path = ios/ClaritySync/DFN/Resources/df3_ll; sourceTree = "<group>"; };
@@ -71,7 +84,27 @@
 			);
 			target = 2E2599362F3B13A5003CA16A /* ClaritySyncUITests */;
 		};
+		96DEAE9F2F5ACDC30056BFA3 /* Exceptions for "rust" folder in "ClaritySync" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"df3-ios/target/xcframework/df3_ios.xcframework",
+			);
+			target = 2E25991F2F3B13A3003CA16A /* ClaritySync */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		96DEAEA02F5ACDC30056BFA3 /* Exceptions for "rust" folder in "Embed Frameworks" phase from "ClaritySync" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			attributesByRelativePath = {
+				"df3-ios/target/xcframework/df3_ios.xcframework" = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+			};
+			buildPhase = 96DEAE9E2F5ACDC30056BFA3 /* Embed Frameworks */;
+			membershipExceptions = (
+				"df3-ios/target/xcframework/df3_ios.xcframework",
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		2E2599802F3DB849003CA16A /* ios */ = {
@@ -86,6 +119,10 @@
 		};
 		2E2599AE2F3DB883003CA16A /* rust */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				96DEAE9F2F5ACDC30056BFA3 /* Exceptions for "rust" folder in "ClaritySync" target */,
+				96DEAEA02F5ACDC30056BFA3 /* Exceptions for "rust" folder in "Embed Frameworks" phase from "ClaritySync" target */,
+			);
 			path = rust;
 			sourceTree = "<group>";
 		};
@@ -157,6 +194,7 @@
 				2E25991C2F3B13A3003CA16A /* Sources */,
 				2E25991D2F3B13A3003CA16A /* Frameworks */,
 				2E25991E2F3B13A3003CA16A /* Resources */,
+				96DEAE9E2F5ACDC30056BFA3 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -222,7 +260,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2620;
-				LastUpgradeCheck = 2620;
+				LastUpgradeCheck = 2630;
 				TargetAttributes = {
 					2E25991F2F3B13A3003CA16A = {
 						CreatedOnToolsVersion = 26.2;
@@ -359,6 +397,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = A43BUZPD8J;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -382,6 +421,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -421,6 +461,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A43BUZPD8J;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -437,6 +478,7 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
@@ -448,7 +490,8 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = A43BUZPD8J;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = B39B22TY7D;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -468,16 +511,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/ios/ClaritySync/DFN/Resources/df3_onnx/.venv/lib/python3.9/site-packages/google/_upb",
-					"$(PROJECT_DIR)/ios/ClaritySync/DFN/Resources/df3_onnx/.venv/lib/python3.9/site-packages/numpy/_core/lib",
-					"$(PROJECT_DIR)/rust/df3-ios/target/aarch64-apple-ios/release/deps",
-					"$(PROJECT_DIR)/rust/df3-ios/target/release/deps",
-					"$(PROJECT_DIR)/rust/df3-ios/target/aarch64-apple-ios/release",
-					"$(PROJECT_DIR)/rust/df3-ios/target/aarch64-apple-ios-sim/release/deps",
-					"$(PROJECT_DIR)/rust/df3-ios/target/aarch64-apple-ios-sim/release",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lynchu.ClaritySync;
@@ -504,7 +538,8 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = A43BUZPD8J;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = B39B22TY7D;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -524,16 +559,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/ios/ClaritySync/DFN/Resources/df3_onnx/.venv/lib/python3.9/site-packages/google/_upb",
-					"$(PROJECT_DIR)/ios/ClaritySync/DFN/Resources/df3_onnx/.venv/lib/python3.9/site-packages/numpy/_core/lib",
-					"$(PROJECT_DIR)/rust/df3-ios/target/aarch64-apple-ios/release/deps",
-					"$(PROJECT_DIR)/rust/df3-ios/target/release/deps",
-					"$(PROJECT_DIR)/rust/df3-ios/target/aarch64-apple-ios/release",
-					"$(PROJECT_DIR)/rust/df3-ios/target/aarch64-apple-ios-sim/release/deps",
-					"$(PROJECT_DIR)/rust/df3-ios/target/aarch64-apple-ios-sim/release",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lynchu.ClaritySync;
@@ -559,6 +585,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = A43BUZPD8J;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
@@ -585,6 +612,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = A43BUZPD8J;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
@@ -610,6 +638,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = A43BUZPD8J;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
@@ -635,6 +664,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = A43BUZPD8J;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
