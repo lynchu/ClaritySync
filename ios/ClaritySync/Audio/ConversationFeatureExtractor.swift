@@ -141,6 +141,39 @@ final class ConversationFeatureExtractor {
     }
 
     func current() -> ConversationMetrics { cached }
+    
+    /// Compute listening fatigue score from window metrics and adjustment events
+    func computeFatigueScore(adjEventsPerMin: Float) -> FatigueMetrics {
+        var fatigue = FatigueMetrics()
+        
+        // Thresholds from CSV analysis
+        let noise_low: Float = -79.07
+        let noise_high: Float = -78.32
+        fatigue.noiseScore = normClamp(silenceDbMAValue, low: noise_low, high: noise_high)
+        
+        // Performance score: max of pause and silence
+        let pause_low: Float = 540
+        let pause_high: Float = 1540
+        let pauseScore = normClamp(cached.p95PauseMs, low: pause_low, high: pause_high)
+        
+        let silence_low: Float = 0.21
+        let silence_high: Float = 0.49
+        let silenceScore = normClamp(cached.silenceRatio, low: silence_low, high: silence_high)
+        
+        fatigue.perfScore = max(pauseScore, silenceScore)
+        
+        // Adjustment score (normalized from debounced events)
+        let adj_low: Float = 0
+        let adj_high: Float = 6
+        fatigue.adjScore = normClamp(adjEventsPerMin, low: adj_low, high: adj_high)
+        fatigue.adjEventsPerMin = adjEventsPerMin
+        
+        // Risk formula: weighted sum
+        fatigue.riskRaw = 0.35 * fatigue.noiseScore + 0.45 * fatigue.perfScore + 0.20 * fatigue.adjScore
+        fatigue.riskRaw = max(0, min(1, fatigue.riskRaw))  // Clamp 0..1
+        
+        return fatigue
+    }
 
     // MARK: - Helpers
 
@@ -189,5 +222,11 @@ final class ConversationFeatureExtractor {
 
     private func dbToLin(_ db: Float) -> Float {
         powf(10.0, db / 20.0)
+    }
+    
+    private func normClamp(_ x: Float, low: Float, high: Float) -> Float {
+        if high == low { return 0 }
+        let clamped = max(low, min(high, x))
+        return (clamped - low) / (high - low)
     }
 }

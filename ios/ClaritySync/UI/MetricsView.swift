@@ -61,6 +61,18 @@ struct MetricsView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             }
+            
+            GroupBox("Listening Fatigue") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(String(format: "Risk EMA: %.3f", metrics.fatigueRiskEMA))
+                    Text("State: \(metrics.fatigueState.rawValue.capitalized)")
+                        .foregroundColor(
+                            metrics.fatigueState == .high ? .red :
+                            metrics.fatigueState == .elevated ? .orange : .green
+                        )
+                }
+                .font(.footnote)
+            }
         }
     }
 }

@@ -247,11 +247,15 @@ final class AudioController: ObservableObject {
     @Published private(set) var dfnModelMode: DFModelMode = .standard
     @Published private(set) var dfnModelLatencySamples: Int = 0
     @Published private(set) var dfnModelLatencyMs: Double = 0
+    @Published var fatigueMonitoringEnabled: Bool = false
+    @Published var showFatigueAlert: Bool = false
+    @Published var fatigueAlertMessage: String = ""
 
     // For feature extraction
     private let adjustCounter = Counter()
     private let featureExtractor = ConversationFeatureExtractor(windowSec: 30.0)
     private let adaptiveGainController = AdaptiveGainController(sampleRate: 48_000, frameSize: 960)
+    private let adjustmentEventDetector = AdjustmentEventDetector()
     
     // For data logging
     private let metricsLogger = CSVLogger()
@@ -289,6 +293,15 @@ final class AudioController: ObservableObject {
     private var ema = EMA(alpha: 0.05, initial: 0)
     private var lastOutSample: Float = 0
 
+    // Fatigue tracking
+    private var fatigue = FatigueMetrics()
+    private var fatigueRiskEMA: Float = 0
+    private let fatigueEmaAlpha: Float = 0.4  // Increased from 0.2 for faster demo response
+    private var lastFatigueAlertTimeSec: Double = 0
+    private let fatigueAlertCooldownSec: Double = 600        // 10 mins
+    private var previousFatigueState: FatigueMetrics.State = .normal
+    private var lastWindowMix: Float = 1.0
+
     // Throttle UI metric publishing (avoid spamming main queue at audio rate)
     private var lastMetricsPublishT: Double = 0
     
@@ -310,6 +323,9 @@ final class AudioController: ObservableObject {
         lastOutSample = 0
         lastMetricsPublishT = 0
         adaptiveGainController.reset()
+        adjustmentEventDetector.clearRollingWindow()
+        fatigueRiskEMA = 0
+        lastFatigueAlertTimeSec = 0
         
         if dfnProcessor == nil {
             rebuildDFNProcessor(modelMode: dfnModelMode)
@@ -351,6 +367,11 @@ final class AudioController: ObservableObject {
 
     func stop() {
         guard isRunning else { return }
+
+        // Reset fatigue tracking
+        adjustmentEventDetector.clearRollingWindow()
+        fatigueRiskEMA = 0
+        lastFatigueAlertTimeSec = 0
 
         switchQueue.async { [weak self] in
             guard let self else { return }
@@ -475,7 +496,12 @@ final class AudioController: ObservableObject {
         if p.postFilterEnabled != params.postFilterEnabled {
             dfnProcessor?.setPostFilter(p.postFilterEnabled)
         }
-        adjustCounter.inc()   // user behavior proxy
+        // Check if this is a meaningful adjustment (debounced event)
+        let now = CACurrentMediaTime()
+        let isCountableEvent = adjustmentEventDetector.onParamsApplied(p, nowSec: now)
+        if isCountableEvent {
+            adjustCounter.inc()
+        }
         DispatchQueue.main.async { self.params = p }
     }
     
@@ -493,7 +519,8 @@ final class AudioController: ObservableObject {
                               + "silenceRatio,meanPauseMs,p95PauseMs,onsetRatePerSec,adjustmentsPerMin,"
                               + "bufferedLatencyMs,procMsEMA,"
                               + "inFill,outFill,inDrops,outUnderruns,outOverflows,"
-                              + "envLevelDb,peakDb,envGain,impulseGain,autoGain,autoAttenDb,limiterActive"
+                              + "envLevelDb,peakDb,envGain,impulseGain,autoGain,autoAttenDb,limiterActive,"
+                              + "fatigueRiskRaw,fatigueRiskEMA,fatigueState,adjEventsDebounced"
                     )
             nextRecordT = CACurrentMediaTime()
             DispatchQueue.main.async { self.isRecording = true }
@@ -514,6 +541,8 @@ final class AudioController: ObservableObject {
             self.recordedFiles = urls
         }
     }
+
+
 
     // MARK: Session / Engine
 
@@ -697,10 +726,44 @@ final class AudioController: ObservableObject {
                         impulseGain: self.adaptiveGainController.impulseGain,
                         autoGain: self.adaptiveGainController.autoGain,
                         autoAttenDb: self.adaptiveGainController.autoAttenDb,
-                        limiterActive: self.adaptiveGainController.limiterActive
+                        limiterActive: self.adaptiveGainController.limiterActive,
+                        fatigueRiskRaw: self.fatigue.riskRaw,
+                        fatigueRiskEMA: self.fatigueRiskEMA,
+                        fatigueState: self.fatigue.state
                     )
                     // Publish extracted feature
                     let c = self.featureExtractor.current()
+                    
+                    // Check for alert trigger based on rolling window adjustment events
+                    // This runs every 0.1 seconds for immediate feedback
+                    let adjEventsPerMin = self.adjustmentEventDetector.getAdjustmentsPerMinute(nowSec: now)
+                    if self.fatigueMonitoringEnabled && adjEventsPerMin > 5.0 {
+                        // Show alert if cooldown expired
+                        let alertCooldownExpired = now - self.lastFatigueAlertTimeSec >= self.fatigueAlertCooldownSec
+                        if alertCooldownExpired {
+                            self.lastFatigueAlertTimeSec = now
+                            DispatchQueue.main.async {
+                                self.fatigueAlertMessage = "You've been adjusting audio settings frequently. This may indicate listening fatigue. Consider taking a break."
+                                self.showFatigueAlert = true
+                            }
+                        }
+                    }
+                    
+                    // Compute fatigue score when window has valid metrics (for state tracking and logging)
+                    if self.fatigueMonitoringEnabled && c.windowSec > 0 && (c.silenceRatio > 0 || c.p95PauseMs > 0) {
+                        // Use rolling window adjustment rate
+                        var rawFatigue = self.featureExtractor.computeFatigueScore(adjEventsPerMin: adjEventsPerMin)
+                        
+                        // Apply EMA smoothing
+                        self.fatigueRiskEMA = (1.0 - self.fatigueEmaAlpha) * self.fatigueRiskEMA + self.fatigueEmaAlpha * rawFatigue.riskRaw
+                        rawFatigue.riskEMA = self.fatigueRiskEMA
+                        
+                        // Update state
+                        self.previousFatigueState = self.fatigue.state
+                        rawFatigue.updateState(riskEMA: self.fatigueRiskEMA)
+                        let newState = rawFatigue.state
+                        self.fatigue = rawFatigue
+                    }
                     
                     DispatchQueue.main.async {
                         self.metrics = m
@@ -734,6 +797,12 @@ final class AudioController: ObservableObject {
                     let autoGain = self.adaptiveGainController.autoGain
                     let autoAttenDb = self.adaptiveGainController.autoAttenDb
                     let limiterActive = self.adaptiveGainController.limiterActive ? 1 : 0
+                    
+                    // Fatigue metrics
+                    let fatigueRiskRaw = self.fatigue.riskRaw
+                    let fatigueRiskEMA = self.fatigueRiskEMA
+                    let fatigueStateStr = self.fatigue.state.rawValue
+                    let adjEventsDebounced = self.adjustmentEventDetector.getAdjustmentsPerMinute(nowSec: now)
 
                     try? self.metricsLogger.writeLine(
                             "\(t),"
@@ -741,7 +810,8 @@ final class AudioController: ObservableObject {
                             + "\(c.silenceRatio),\(c.meanPauseMs),\(c.p95PauseMs),\(c.onsetRatePerSec),\(c.adjustmentsPerMin),"
                             + "\(bufferedLatencyMs),\(procMs),"
                             + "\(inFill),\(outFill),\(inDrops),\(outUnderruns),\(outOverflows),"
-                            + "\(envLevelDb),\(peakDb),\(envGain),\(impulseGain),\(autoGain),\(autoAttenDb),\(limiterActive)"
+                            + "\(envLevelDb),\(peakDb),\(envGain),\(impulseGain),\(autoGain),\(autoAttenDb),\(limiterActive),"
+                            + "\(fatigueRiskRaw),\(fatigueRiskEMA),\(fatigueStateStr),\(adjEventsDebounced)"
                         )
                 }
             }

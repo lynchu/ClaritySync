@@ -25,6 +25,11 @@ struct AudioMetrics: Equatable {
     var autoGain: Float = 1.0               // Combined: min(envGain, impulseGain)
     var autoAttenDb: Float = 0.0            // Attenuation in dB
     var limiterActive: Bool = false         // Is hold active
+    
+    // Listening fatigue metrics
+    var fatigueRiskRaw: Float = 0.0
+    var fatigueRiskEMA: Float = 0.0
+    var fatigueState: FatigueMetrics.State = .normal
 
     init(emaProcMs: Double = 0,
          dropCount: Int = 0,
@@ -38,7 +43,10 @@ struct AudioMetrics: Equatable {
          impulseGain: Float = 1.0,
          autoGain: Float = 1.0,
          autoAttenDb: Float = 0.0,
-         limiterActive: Bool = false) {
+         limiterActive: Bool = false,
+         fatigueRiskRaw: Float = 0.0,
+         fatigueRiskEMA: Float = 0.0,
+         fatigueState: FatigueMetrics.State = .normal) {
         self.emaProcMs = emaProcMs
         self.dropCount = dropCount
         self.inFill = inFill
@@ -52,5 +60,8 @@ struct AudioMetrics: Equatable {
         self.autoGain = autoGain
         self.autoAttenDb = autoAttenDb
         self.limiterActive = limiterActive
+        self.fatigueRiskRaw = fatigueRiskRaw
+        self.fatigueRiskEMA = fatigueRiskEMA
+        self.fatigueState = fatigueState
     }
 }
