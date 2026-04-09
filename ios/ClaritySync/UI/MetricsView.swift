@@ -47,6 +47,20 @@ struct MetricsView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             }
+            
+            GroupBox("Adaptive Gain Protection") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(String(format: "Env Level: %.1f dB", metrics.envLevelDb))
+                    Text(String(format: "Peak: %.1f dB", metrics.peakDb))
+                    Text(String(format: "Env Gain: %.4f   Impulse Gain: %.4f", metrics.envGain, metrics.impulseGain))
+                    Text(String(format: "Auto Gain: %.4f   Attenuation: %.2f dB", metrics.autoGain, metrics.autoAttenDb))
+                    Text("Limiter: \(metrics.limiterActive ? "ACTIVE" : "idle")")
+                        .foregroundColor(metrics.limiterActive ? .red : .secondary)
+                }
+                .font(.footnote)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            }
         }
     }
 }

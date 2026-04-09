@@ -20,6 +20,9 @@ struct AudioParams: Equatable {
 
     /// Post-filter toggle (mask-based)
     var postFilterEnabled: Bool = true
+    
+    /// Enable adaptive gain protection (sustained + impulse)
+    var autoGainEnabled: Bool = false
 
-    static let demoDefault = AudioParams(gain: 1.0, mix: 1.0, dfnEnabled: false, postFilterEnabled: true)
+    static let demoDefault = AudioParams(gain: 1.0, mix: 1.0, dfnEnabled: false, postFilterEnabled: true, autoGainEnabled: false)
 }

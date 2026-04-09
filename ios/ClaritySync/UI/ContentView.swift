@@ -80,6 +80,15 @@ struct ContentView: View {
                                 }
                             ))
                             .disabled(!audio.params.dfnEnabled)
+                            
+                            Toggle("Auto Protection Enabled", isOn: Binding(
+                                get: { audio.params.autoGainEnabled },
+                                set: { v in
+                                    var p = audio.params
+                                    p.autoGainEnabled = v
+                                    audio.applyParams(p)
+                                }
+                            ))
 
                             VStack(alignment: .leading) {
                                 Text(String(format: "Gain: %.2f", audio.params.gain))

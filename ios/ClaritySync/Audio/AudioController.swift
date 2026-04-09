@@ -251,6 +251,7 @@ final class AudioController: ObservableObject {
     // For feature extraction
     private let adjustCounter = Counter()
     private let featureExtractor = ConversationFeatureExtractor(windowSec: 30.0)
+    private let adaptiveGainController = AdaptiveGainController(sampleRate: 48_000, frameSize: 960)
     
     // For data logging
     private let metricsLogger = CSVLogger()
@@ -308,6 +309,7 @@ final class AudioController: ObservableObject {
         ema = EMA(alpha: 0.05, initial: 0)
         lastOutSample = 0
         lastMetricsPublishT = 0
+        adaptiveGainController.reset()
         
         if dfnProcessor == nil {
             rebuildDFNProcessor(modelMode: dfnModelMode)
@@ -490,7 +492,8 @@ final class AudioController: ObservableObject {
                               + "isSpeech,rmsDb,noiseDb,silenceDbMA,"
                               + "silenceRatio,meanPauseMs,p95PauseMs,onsetRatePerSec,adjustmentsPerMin,"
                               + "bufferedLatencyMs,procMsEMA,"
-                              + "inFill,outFill,inDrops,outUnderruns,outOverflows"
+                              + "inFill,outFill,inDrops,outUnderruns,outOverflows,"
+                              + "envLevelDb,peakDb,envGain,impulseGain,autoGain,autoAttenDb,limiterActive"
                     )
             nextRecordT = CACurrentMediaTime()
             DispatchQueue.main.async { self.isRecording = true }
@@ -644,12 +647,26 @@ final class AudioController: ObservableObject {
                                              adjustmentsCounter: adjustments)
                 
                 let p = self.paramsBox.get()
+                
+                // Compute adaptive autoGain for sustained + impulse protection
+                let rmsDb = self.featureExtractor.current().rmsDb
+                let _ = self.adaptiveGainController.process(inBuf: inBuf, rmsDb: rmsDb, enabled: p.autoGainEnabled)
+                
                 inBuf.withUnsafeBufferPointer { inp in
                     outBuf.withUnsafeMutableBufferPointer { outp in
                         self.processor.process(input: inp.baseAddress!,
                                                output: outp.baseAddress!,
                                                frameCount: self.frameSize,
                                                params: p)
+                    }
+                }
+                
+                // Apply adaptive gain to output
+                let autoGain = self.adaptiveGainController.autoGain
+                if autoGain < 0.9999 {  // Only multiply if there's some attenuation
+                    outBuf.withUnsafeMutableBufferPointer { outPtr in
+                        var ag = autoGain
+                        vDSP_vsmul(outPtr.baseAddress!, 1, &ag, outPtr.baseAddress!, 1, vDSP_Length(self.frameSize))
                     }
                 }
 
@@ -673,7 +690,14 @@ final class AudioController: ObservableObject {
                         inFill: self.inRing.availableToRead(),
                         outFill: self.outRing.availableToRead(),
                         outUnderruns: self.outUnderrunCounter.get(),
-                        outOverflows: self.outOverflowCounter.get()
+                        outOverflows: self.outOverflowCounter.get(),
+                        envLevelDb: self.adaptiveGainController.envLevelDb,
+                        peakDb: self.adaptiveGainController.peakDb,
+                        envGain: self.adaptiveGainController.envGain,
+                        impulseGain: self.adaptiveGainController.impulseGain,
+                        autoGain: self.adaptiveGainController.autoGain,
+                        autoAttenDb: self.adaptiveGainController.autoAttenDb,
+                        limiterActive: self.adaptiveGainController.limiterActive
                     )
                     // Publish extracted feature
                     let c = self.featureExtractor.current()
@@ -701,13 +725,23 @@ final class AudioController: ObservableObject {
                     let inDrops = self.inDropCounter.get()
                     let outUnderruns = self.outUnderrunCounter.get()
                     let outOverflows = self.outOverflowCounter.get()
+                    
+                    // Adaptive gain metrics
+                    let envLevelDb = self.adaptiveGainController.envLevelDb
+                    let peakDb = self.adaptiveGainController.peakDb
+                    let envGain = self.adaptiveGainController.envGain
+                    let impulseGain = self.adaptiveGainController.impulseGain
+                    let autoGain = self.adaptiveGainController.autoGain
+                    let autoAttenDb = self.adaptiveGainController.autoAttenDb
+                    let limiterActive = self.adaptiveGainController.limiterActive ? 1 : 0
 
                     try? self.metricsLogger.writeLine(
                             "\(t),"
                             + "\(c.isSpeech ? 1 : 0),\(c.rmsDb),\(c.noiseFloorDb),\(c.silenceDbMA),"
                             + "\(c.silenceRatio),\(c.meanPauseMs),\(c.p95PauseMs),\(c.onsetRatePerSec),\(c.adjustmentsPerMin),"
                             + "\(bufferedLatencyMs),\(procMs),"
-                            + "\(inFill),\(outFill),\(inDrops),\(outUnderruns),\(outOverflows)"
+                            + "\(inFill),\(outFill),\(inDrops),\(outUnderruns),\(outOverflows),"
+                            + "\(envLevelDb),\(peakDb),\(envGain),\(impulseGain),\(autoGain),\(autoAttenDb),\(limiterActive)"
                         )
                 }
             }
