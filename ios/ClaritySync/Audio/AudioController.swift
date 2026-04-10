@@ -301,6 +301,11 @@ final class AudioController: ObservableObject {
     private let fatigueAlertCooldownSec: Double = 600        // 10 mins
     private var previousFatigueState: FatigueMetrics.State = .normal
     private var lastWindowMix: Float = 1.0
+    
+    // Spectral analysis
+    private var spectralAnalyzer = SpectralAnalyzer(sampleRate: 48_000)
+    private var lastSpectralUpdateT: Double = 0
+    private var lastMeanSpectralRolloff: Float = 0.0
 
     // Throttle UI metric publishing (avoid spamming main queue at audio rate)
     private var lastMetricsPublishT: Double = 0
@@ -324,8 +329,11 @@ final class AudioController: ObservableObject {
         lastMetricsPublishT = 0
         adaptiveGainController.reset()
         adjustmentEventDetector.clearRollingWindow()
+        spectralAnalyzer.reset()
         fatigueRiskEMA = 0
         lastFatigueAlertTimeSec = 0
+        lastSpectralUpdateT = 0
+        lastMeanSpectralRolloff = 0.0
         
         if dfnProcessor == nil {
             rebuildDFNProcessor(modelMode: dfnModelMode)
@@ -372,6 +380,11 @@ final class AudioController: ObservableObject {
         adjustmentEventDetector.clearRollingWindow()
         fatigueRiskEMA = 0
         lastFatigueAlertTimeSec = 0
+        
+        // Reset spectral analysis
+        spectralAnalyzer.reset()
+        lastSpectralUpdateT = 0
+        lastMeanSpectralRolloff = 0.0
 
         switchQueue.async { [weak self] in
             guard let self else { return }
@@ -520,7 +533,8 @@ final class AudioController: ObservableObject {
                               + "bufferedLatencyMs,procMsEMA,"
                               + "inFill,outFill,inDrops,outUnderruns,outOverflows,"
                               + "envLevelDb,peakDb,envGain,impulseGain,autoGain,autoAttenDb,limiterActive,"
-                              + "fatigueRiskRaw,fatigueRiskEMA,fatigueState,adjEventsDebounced"
+                              + "fatigueRiskRaw,fatigueRiskEMA,fatigueState,adjEventsDebounced,"
+                              + "meanSpectralRolloff"
                     )
             nextRecordT = CACurrentMediaTime()
             DispatchQueue.main.async { self.isRecording = true }
@@ -675,6 +689,11 @@ final class AudioController: ObservableObject {
                                              frameSize: self.frameSize,
                                              adjustmentsCounter: adjustments)
                 
+                // Feed audio samples into spectral analyzer to compute rolloff
+                let meanRolloff = inBuf.withUnsafeBufferPointer { ptr in
+                    self.spectralAnalyzer.processSamples(ptr.baseAddress!, count: self.frameSize)
+                } ?? 0.0
+                
                 let p = self.paramsBox.get()
                 
                 // Compute adaptive autoGain for sustained + impulse protection
@@ -729,7 +748,8 @@ final class AudioController: ObservableObject {
                         limiterActive: self.adaptiveGainController.limiterActive,
                         fatigueRiskRaw: self.fatigue.riskRaw,
                         fatigueRiskEMA: self.fatigueRiskEMA,
-                        fatigueState: self.fatigue.state
+                        fatigueState: self.fatigue.state,
+                        meanSpectralRolloff: meanRolloff
                     )
                     // Publish extracted feature
                     let c = self.featureExtractor.current()
@@ -765,8 +785,18 @@ final class AudioController: ObservableObject {
                         self.fatigue = rawFatigue
                     }
                     
+                    // Update spectral rolloff every ~1 second for display
+                    if now - self.lastSpectralUpdateT >= 1.0 {
+                        self.lastSpectralUpdateT = now
+                        if let rolloff = self.spectralAnalyzer.getMeanRolloff() {
+                            self.lastMeanSpectralRolloff = rolloff
+                        }
+                    }
+                    
                     DispatchQueue.main.async {
                         self.metrics = m
+                        var c = c
+                        c.meanSpectralRolloff = self.lastMeanSpectralRolloff
                         self.convo = c
                     }
                 }
@@ -811,7 +841,8 @@ final class AudioController: ObservableObject {
                             + "\(bufferedLatencyMs),\(procMs),"
                             + "\(inFill),\(outFill),\(inDrops),\(outUnderruns),\(outOverflows),"
                             + "\(envLevelDb),\(peakDb),\(envGain),\(impulseGain),\(autoGain),\(autoAttenDb),\(limiterActive),"
-                            + "\(fatigueRiskRaw),\(fatigueRiskEMA),\(fatigueStateStr),\(adjEventsDebounced)"
+                            + "\(fatigueRiskRaw),\(fatigueRiskEMA),\(fatigueStateStr),\(adjEventsDebounced),"
+                            + "\(meanRolloff)"
                         )
                 }
             }

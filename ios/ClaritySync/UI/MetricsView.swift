@@ -42,6 +42,7 @@ struct MetricsView: View {
                     Text(String(format: "pause mean/p95 (ms): %.0f / %.0f", convo.meanPauseMs, convo.p95PauseMs))
                     Text(String(format: "onsetRate (/s): %.2f", convo.onsetRatePerSec))
                     Text(String(format: "adjustments/min: %.2f", convo.adjustmentsPerMin))
+                    Text(String(format: "Spectral Rolloff: %.0f Hz", convo.meanSpectralRolloff))
                 }
                 .font(.footnote)
                 .lineLimit(1)
@@ -73,6 +74,7 @@ struct MetricsView: View {
                 }
                 .font(.footnote)
             }
+            
         }
     }
 }

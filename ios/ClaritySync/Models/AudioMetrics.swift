@@ -30,6 +30,9 @@ struct AudioMetrics: Equatable {
     var fatigueRiskRaw: Float = 0.0
     var fatigueRiskEMA: Float = 0.0
     var fatigueState: FatigueMetrics.State = .normal
+    
+    // Spectral analysis
+    var meanSpectralRolloff: Float = 0.0   // Mean rolloff frequency (Hz) over 10s window
 
     init(emaProcMs: Double = 0,
          dropCount: Int = 0,
@@ -46,7 +49,8 @@ struct AudioMetrics: Equatable {
          limiterActive: Bool = false,
          fatigueRiskRaw: Float = 0.0,
          fatigueRiskEMA: Float = 0.0,
-         fatigueState: FatigueMetrics.State = .normal) {
+         fatigueState: FatigueMetrics.State = .normal,
+         meanSpectralRolloff: Float = 0.0) {
         self.emaProcMs = emaProcMs
         self.dropCount = dropCount
         self.inFill = inFill
@@ -63,5 +67,6 @@ struct AudioMetrics: Equatable {
         self.fatigueRiskRaw = fatigueRiskRaw
         self.fatigueRiskEMA = fatigueRiskEMA
         self.fatigueState = fatigueState
+        self.meanSpectralRolloff = meanSpectralRolloff
     }
 }
