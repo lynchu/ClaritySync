@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var audio = AudioController()
+    @State private var showPreferredVolumeSheet = false
 
     var body: some View {
         NavigationStack {
@@ -22,11 +23,35 @@ struct ContentView: View {
                         }
                         .buttonStyle(.borderedProminent)
 
+                        Button("Set Preferred Volume") {
+                            showPreferredVolumeSheet = true
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(audio.isRunning)
+
                         Spacer()
 
                         Text(audio.isRunning ? "Running" : "Ready")
                             .font(.footnote)
                             .foregroundColor(.secondary)
+                    }
+
+                    GroupBox("Preferred Volume") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            let range = audio.preferredVolumeRange
+                            Text(
+                                audio.hasPreferredVolumeConfigured
+                                ? String(format: "Comfort range: %.0f dBFS to %.0f dBFS", range.lowerBound, range.upperBound)
+                                : "Not calibrated yet. Run the guided setup once."
+                            )
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+
+                            Text("Calibration plays a tone from quiet to loud. Mark the first comfortable level, then the highest still comfortable level.")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
 
                     // MARK: - DeepFilterNet Model
@@ -208,6 +233,73 @@ struct ContentView: View {
                 }
             } message: {
                 Text(audio.fatigueAlertMessage)
+            .sheet(isPresented: $showPreferredVolumeSheet, onDismiss: {
+                audio.stopPreferredVolumeCalibration()
+            }) {
+                PreferredVolumeCalibrationSheet(audio: audio)
+            }
+        }
+    }
+}
+
+private struct PreferredVolumeCalibrationSheet: View {
+    @ObservedObject var audio: AudioController
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Use your usual earbuds/headphones. This tone repeats from quiet to loud in steps.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+
+                Text(String(format: "Current step: %.0f dBFS", audio.currentCalibrationDbFS))
+                    .font(.headline)
+
+                if let minMark = audio.calibrationMinMarkDbFS {
+                    Text(String(format: "Minimum comfortable: %.0f dBFS", minMark))
+                        .font(.footnote)
+                }
+                if let maxMark = audio.calibrationMaxMarkDbFS {
+                    Text(String(format: "Maximum comfortable: %.0f dBFS", maxMark))
+                        .font(.footnote)
+                }
+
+                HStack(spacing: 12) {
+                    Button(audio.isCalibratingPreferredVolume ? "Stop Tone" : "Start Tone") {
+                        if audio.isCalibratingPreferredVolume {
+                            audio.stopPreferredVolumeCalibration()
+                        } else {
+                            audio.startPreferredVolumeCalibration()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Button("Mark Min Comfortable") {
+                        audio.markCalibrationMinComfort()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!audio.isCalibratingPreferredVolume)
+                }
+
+                Button("Mark Max Comfortable and Save") {
+                    audio.markCalibrationMaxComfortAndSave()
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
+                .disabled(!audio.isCalibratingPreferredVolume || audio.calibrationMinMarkDbFS == nil)
+
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Preferred Volume")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        audio.stopPreferredVolumeCalibration()
+                        dismiss()
+                    }
+                }
             }
         }
     }

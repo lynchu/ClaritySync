@@ -11,6 +11,36 @@ import Combine
 import os.lock
 import Accelerate
 
+private struct PreferredVolumeRange: Equatable {
+    var minComfortDbFS: Float
+    var maxComfortDbFS: Float
+
+    static let `default` = PreferredVolumeRange(minComfortDbFS: -30.0, maxComfortDbFS: -14.0)
+}
+
+private enum PreferredVolumeStore {
+    private static let minKey = "preferredVolume.minComfortDbFS"
+    private static let maxKey = "preferredVolume.maxComfortDbFS"
+    private static let configuredKey = "preferredVolume.isConfigured"
+
+    static func load() -> (range: PreferredVolumeRange, isConfigured: Bool) {
+        let d = UserDefaults.standard
+        if d.bool(forKey: configuredKey) {
+            let minDb = d.object(forKey: minKey) as? Float ?? PreferredVolumeRange.default.minComfortDbFS
+            let maxDb = d.object(forKey: maxKey) as? Float ?? PreferredVolumeRange.default.maxComfortDbFS
+            return (PreferredVolumeRange(minComfortDbFS: minDb, maxComfortDbFS: max(maxDb, minDb + 3.0)), true)
+        }
+        return (.default, false)
+    }
+
+    static func save(_ range: PreferredVolumeRange) {
+        let d = UserDefaults.standard
+        d.set(range.minComfortDbFS, forKey: minKey)
+        d.set(range.maxComfortDbFS, forKey: maxKey)
+        d.set(true, forKey: configuredKey)
+    }
+}
+
 // MARK: - Thread-safe boxes
 
 private final class ParamsBox {
@@ -250,6 +280,12 @@ final class AudioController: ObservableObject {
     @Published var fatigueMonitoringEnabled: Bool = false
     @Published var showFatigueAlert: Bool = false
     @Published var fatigueAlertMessage: String = ""
+    @Published private(set) var preferredVolumeRange: ClosedRange<Float> = -30.0 ... -14.0
+    @Published private(set) var hasPreferredVolumeConfigured: Bool = false
+    @Published private(set) var isCalibratingPreferredVolume: Bool = false
+    @Published private(set) var currentCalibrationDbFS: Float = -50.0
+    @Published private(set) var calibrationMinMarkDbFS: Float?
+    @Published private(set) var calibrationMaxMarkDbFS: Float?
 
     // For feature extraction
     private let adjustCounter = Counter()
@@ -309,9 +345,19 @@ final class AudioController: ObservableObject {
 
     // Throttle UI metric publishing (avoid spamming main queue at audio rate)
     private var lastMetricsPublishT: Double = 0
+    private var preferredOutputGain: Float = 1.0
+    private var volumeCalibrationSession: VolumeCalibrationSession?
     
-    init() { rebuildDFNProcessor(modelMode: .standard) }
-    deinit { routeMonitor.stop() }
+    init() {
+        rebuildDFNProcessor(modelMode: .standard)
+        let pref = PreferredVolumeStore.load()
+        preferredVolumeRange = pref.range.minComfortDbFS ... pref.range.maxComfortDbFS
+        hasPreferredVolumeConfigured = pref.isConfigured
+    }
+    deinit {
+        routeMonitor.stop()
+        volumeCalibrationSession?.stop()
+    }
 
     // MARK: Public API
 
@@ -334,6 +380,7 @@ final class AudioController: ObservableObject {
         lastFatigueAlertTimeSec = 0
         lastSpectralUpdateT = 0
         lastMeanSpectralRolloff = 0.0
+        preferredOutputGain = 1.0
         
         if dfnProcessor == nil {
             rebuildDFNProcessor(modelMode: dfnModelMode)
@@ -516,6 +563,60 @@ final class AudioController: ObservableObject {
             adjustCounter.inc()
         }
         DispatchQueue.main.async { self.params = p }
+    }
+
+    func setPreferredVolumeRange(minDbFS: Float, maxDbFS: Float) {
+        let minClamped = min(max(minDbFS, -60.0), -6.0)
+        let maxClamped = min(max(maxDbFS, minClamped + 3.0), 0.0)
+        let range = PreferredVolumeRange(minComfortDbFS: minClamped, maxComfortDbFS: maxClamped)
+        PreferredVolumeStore.save(range)
+        DispatchQueue.main.async {
+            self.preferredVolumeRange = range.minComfortDbFS ... range.maxComfortDbFS
+            self.hasPreferredVolumeConfigured = true
+        }
+    }
+
+    func startPreferredVolumeCalibration() {
+        guard !isRunning, !isCalibratingPreferredVolume else { return }
+        calibrationMinMarkDbFS = nil
+        calibrationMaxMarkDbFS = nil
+
+        let session = VolumeCalibrationSession()
+        session.onStep = { [weak self] db in
+            DispatchQueue.main.async { self?.currentCalibrationDbFS = db }
+        }
+        do {
+            try session.start()
+            volumeCalibrationSession = session
+            DispatchQueue.main.async {
+                self.isCalibratingPreferredVolume = true
+                self.currentCalibrationDbFS = session.currentStepDbFS
+            }
+        } catch {
+            print("startPreferredVolumeCalibration error:", error)
+        }
+    }
+
+    func stopPreferredVolumeCalibration() {
+        volumeCalibrationSession?.stop()
+        volumeCalibrationSession = nil
+        DispatchQueue.main.async {
+            self.isCalibratingPreferredVolume = false
+        }
+    }
+
+    func markCalibrationMinComfort() {
+        guard isCalibratingPreferredVolume else { return }
+        calibrationMinMarkDbFS = currentCalibrationDbFS
+    }
+
+    func markCalibrationMaxComfortAndSave() {
+        guard isCalibratingPreferredVolume else { return }
+        calibrationMaxMarkDbFS = currentCalibrationDbFS
+        guard let minMark = calibrationMinMarkDbFS,
+              let maxMark = calibrationMaxMarkDbFS else { return }
+        setPreferredVolumeRange(minDbFS: minMark, maxDbFS: maxMark)
+        stopPreferredVolumeCalibration()
     }
     
     func startRecording() {
@@ -717,6 +818,7 @@ final class AudioController: ObservableObject {
                         vDSP_vsmul(outPtr.baseAddress!, 1, &ag, outPtr.baseAddress!, 1, vDSP_Length(self.frameSize))
                     }
                 }
+                self.applyPreferredVolumeGuard(&outBuf)
 
                 let wrote = outBuf.withUnsafeBufferPointer { ptr in
                     self.outRing.tryWrite(ptr.baseAddress!, count: self.frameSize)
@@ -863,5 +965,46 @@ final class AudioController: ObservableObject {
 
         inRing?.clear()
         outRing?.clear()
+    }
+
+    private func applyPreferredVolumeGuard(_ frame: inout [Float]) {
+        guard !frame.isEmpty else { return }
+
+        var sumSq: Float = 0
+        var peak: Float = 0
+        for s in frame {
+            let a = abs(s)
+            peak = max(peak, a)
+            sumSq += s * s
+        }
+        let rms = sqrt(max(sumSq / Float(frame.count), 1e-12))
+        let rmsDb = 20.0 * log10(rms)
+        let peakDb = 20.0 * log10(max(peak, 1e-12))
+
+        let range = preferredVolumeRange
+        var targetGain: Float = 1.0
+        if rmsDb < range.lowerBound {
+            targetGain = pow(10.0, (range.lowerBound - rmsDb) / 20.0)
+        } else if rmsDb > range.upperBound {
+            targetGain = pow(10.0, (range.upperBound - rmsDb) / 20.0)
+        }
+
+        // Keep headroom around preferred upper bound to avoid harsh clipping.
+        let allowedPeakDb = range.upperBound + 2.0
+        if peakDb > allowedPeakDb {
+            let limiterGain = pow(10.0, (allowedPeakDb - peakDb) / 20.0)
+            targetGain = min(targetGain, limiterGain)
+        }
+
+        let attack: Float = 0.20
+        let release: Float = 0.03
+        let alpha = targetGain < preferredOutputGain ? attack : release
+        preferredOutputGain += alpha * (targetGain - preferredOutputGain)
+
+        var g = preferredOutputGain
+        frame.withUnsafeMutableBufferPointer { ptr in
+            guard let base = ptr.baseAddress else { return }
+            vDSP_vsmul(base, 1, &g, base, 1, vDSP_Length(ptr.count))
+        }
     }
 }
