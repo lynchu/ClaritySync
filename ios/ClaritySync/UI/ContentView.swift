@@ -80,6 +80,17 @@ struct ContentView: View {
                                 }
                             ))
                             .disabled(!audio.params.dfnEnabled)
+                            
+                            Toggle("Auto Protection Enabled", isOn: Binding(
+                                get: { audio.params.autoGainEnabled },
+                                set: { v in
+                                    var p = audio.params
+                                    p.autoGainEnabled = v
+                                    audio.applyParams(p)
+                                }
+                            ))
+                            
+                            Toggle("Enable Fatigue Monitoring", isOn: $audio.fatigueMonitoringEnabled)
 
                             VStack(alignment: .leading) {
                                 Text(String(format: "Gain: %.2f", audio.params.gain))
@@ -104,6 +115,8 @@ struct ContentView: View {
                                     }
                                 ), in: 0.0...1.0)
                             }
+
+
                         }
                     }
 
@@ -185,6 +198,16 @@ struct ContentView: View {
                         .font(.footnote)
                         .foregroundColor(.secondary)
                 }
+            }
+            .alert("Listening Fatigue Detected", isPresented: $audio.showFatigueAlert) {
+                Button("OK") {
+                    audio.showFatigueAlert = false
+                }
+                Button("Remind me later") {
+                    audio.showFatigueAlert = false
+                }
+            } message: {
+                Text(audio.fatigueAlertMessage)
             }
         }
     }

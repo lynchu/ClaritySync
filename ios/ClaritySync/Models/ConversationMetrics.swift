@@ -18,6 +18,9 @@ struct ConversationMetrics: Equatable {
 
     // Behavior proxy
     var adjustmentsPerMin: Float = 0.0
+    
+    // Spectral features
+    var meanSpectralRolloff: Float = 0.0
 
     static let zero = ConversationMetrics()
 }
